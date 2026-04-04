@@ -9,13 +9,21 @@ exports.createTransaction = async (req, res) => {
 };
 
 exports.getTransactions = async (req, res) => {
-  const { type, category } = req.query;
+  const { page = 1, limit = 10, search } = req.query;
 
-  const filter = {};
-  if (type) filter.type = type;
-  if (category) filter.category = category;
+  const query = {};
 
-  const transactions = await Transaction.find(filter);
+  if (search) {
+    query.$or = [
+      { category: { $regex: search, $options: "i" } },
+      { notes: { $regex: search, $options: "i" } }
+    ];
+  }
+
+  const transactions = await Transaction.find(query)
+    .skip((page - 1) * limit)
+    .limit(Number(limit));
+
   res.json(transactions);
 };
 

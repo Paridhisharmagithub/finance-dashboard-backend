@@ -34,6 +34,16 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+app.get("/", (req, res) => {
+  res.send("Finance Dashboard API is running 🚀");
+});
+
+app.use((req, res) => {
+  res.status(404).json({
+    message: `Route not found - ${req.originalUrl}`
+  });
+});
+
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/transactions", transactionRoutes);

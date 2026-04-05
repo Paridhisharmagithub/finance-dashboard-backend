@@ -27,6 +27,7 @@ const authLimiter = rateLimit({
   message: { message: "Too many auth attempts, please try again later" }
 });
 
+// ✅ Routes FIRST
 app.get("/api/health", (req, res) => {
   res.json({
     message: "Finance Dashboard API is running",
@@ -38,17 +39,15 @@ app.get("/", (req, res) => {
   res.send("Finance Dashboard API is running 🚀");
 });
 
-app.use((req, res) => {
-  res.status(404).json({
-    message: `Route not found - ${req.originalUrl}`
-  });
-});
-
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 
+// ❌ REMOVE this old 404 block (important)
+// app.use((req, res) => { ... })
+
+// ✅ Use proper middleware LAST
 app.use(notFound);
 app.use(errorHandler);
 

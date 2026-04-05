@@ -9,10 +9,13 @@ const {
   toTrimmedString
 } = require("../utils/validators");
 
+/* -------------------- VALIDATION BUILDER -------------------- */
+
 const buildTransactionPayload = (body, { partial = false } = {}) => {
   const payload = {};
 
-  if (!partial || typeof body.amount !== "undefined") {
+  // Amount
+  if (!partial || body.amount !== undefined) {
     const amount = toPositiveNumber(body.amount);
     if (amount === null) {
       throw new ApiError(400, "Amount must be a positive number");
@@ -20,111 +23,126 @@ const buildTransactionPayload = (body, { partial = false } = {}) => {
     payload.amount = amount;
   }
 
-  if (!partial || typeof body.type !== "undefined") {
+  // Type
+  if (!partial || body.type !== undefined) {
     const type = toTrimmedString(body.type).toLowerCase();
     if (!ALLOWED_TRANSACTION_TYPES.includes(type)) {
-      throw new ApiError(400, "Type must be either income or expense");
+      throw new ApiError(400, "Type must be income or expense");
     }
     payload.type = type;
   }
 
-  if (!partial || typeof body.category !== "undefined") {
+  // Category
+  if (!partial || body.category !== undefined) {
     const category = toTrimmedString(body.category).toLowerCase();
-    if (!category) {
-      throw new ApiError(400, "Category is required");
-    }
-    if (category.length < 2) {
+    if (!category || category.length < 2) {
       throw new ApiError(400, "Category must be at least 2 characters");
     }
     payload.category = category;
   }
 
-  if (!partial || typeof body.date !== "undefined") {
+  // Date
+  if (!partial || body.date !== undefined) {
     const date = body.date ? parseDate(body.date) : new Date();
-    if (!date) {
-      throw new ApiError(400, "Invalid date");
-    }
+    if (!date) throw new ApiError(400, "Invalid date");
     payload.date = date;
   }
 
-  if (!partial || typeof body.notes !== "undefined") {
+  // Notes
+  if (!partial || body.notes !== undefined) {
     payload.notes = toTrimmedString(body.notes || "");
   }
 
   return payload;
 };
 
+/* -------------------- GET TRANSACTIONS -------------------- */
+
 const getTransactions = asyncHandler(async (req, res) => {
-  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 100);
   const skip = (page - 1) * limit;
-
-  const allowedSortFields = ["date", "createdAt", "updatedAt", "amount", "category", "type"];
-  const sortBy = req.query.sortBy || "date";
-  const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
-
-  if (!allowedSortFields.includes(sortBy)) {
-    throw new ApiError(400, "Invalid sortBy field");
-  }
 
   const filter = {};
 
-  const includeDeleted =
-    req.user.role === "admin" && String(req.query.includeDeleted).toLowerCase() === "true";
+  // 🔥 ADD THIS HERE
+  if (req.query.startDate || req.query.endDate) {
+    filter.date = {};
 
-  if (!includeDeleted) {
+    if (req.query.startDate) {
+      const startDate = new Date(req.query.startDate);
+      if (isNaN(startDate)) {
+        throw new ApiError(400, "Invalid startDate");
+      }
+      filter.date.$gte = startDate;
+    }
+
+    if (req.query.endDate) {
+      const endDate = new Date(req.query.endDate);
+      if (isNaN(endDate)) {
+        throw new ApiError(400, "Invalid endDate");
+      }
+      filter.date.$lte = endDate;
+    }
+  }
+
+  // Soft delete filter
+  if (!(req.user.role === "admin" && req.query.includeDeleted === "true")) {
     filter.isDeleted = false;
   }
 
+  // Type filter
   if (req.query.type) {
-    const type = toTrimmedString(req.query.type).toLowerCase();
-    if (!ALLOWED_TRANSACTION_TYPES.includes(type)) {
-      throw new ApiError(400, "Invalid type filter");
-    }
-    filter.type = type;
+    filter.type = req.query.type.toLowerCase();
   }
 
+  // Category filter
   if (req.query.category) {
-    const category = escapeRegExp(toTrimmedString(req.query.category).toLowerCase());
-    filter.category = { $regex: `^${category}$`, $options: "i" };
+    filter.category = {
+      $regex: escapeRegExp(req.query.category),
+      $options: "i"
+    };
   }
 
+  // Search
   if (req.query.search) {
-    const search = escapeRegExp(toTrimmedString(req.query.search));
+    const search = escapeRegExp(req.query.search);
     filter.$or = [
       { category: { $regex: search, $options: "i" } },
       { notes: { $regex: search, $options: "i" } }
     ];
   }
 
+  // Date filter
   if (req.query.startDate || req.query.endDate) {
     filter.date = {};
 
     if (req.query.startDate) {
-      const startDate = parseDate(req.query.startDate);
-      if (!startDate) throw new ApiError(400, "Invalid startDate");
-      filter.date.$gte = startDate;
+      const start = parseDate(req.query.startDate);
+      if (!start) throw new ApiError(400, "Invalid startDate");
+      filter.date.$gte = start;
     }
 
     if (req.query.endDate) {
-      const endDate = parseDate(req.query.endDate);
-      if (!endDate) throw new ApiError(400, "Invalid endDate");
-      filter.date.$lte = endDate;
+      const end = parseDate(req.query.endDate);
+      if (!end) throw new ApiError(400, "Invalid endDate");
+      filter.date.$lte = end;
     }
   }
 
-  const [data, total] = await Promise.all([
+  const [transactions, total] = await Promise.all([
     Transaction.find(filter)
-      .sort({ [sortBy]: sortOrder, createdAt: -1 })
+      .sort({ date: -1 })
       .skip(skip)
       .limit(limit)
       .populate("createdBy", "name email role")
       .populate("updatedBy", "name email role"),
+
     Transaction.countDocuments(filter)
   ]);
 
   res.json({
-    data,
+    data: transactions,
     meta: {
       page,
       limit,
@@ -134,8 +152,10 @@ const getTransactions = asyncHandler(async (req, res) => {
   });
 });
 
+/* -------------------- CREATE -------------------- */
+
 const createTransaction = asyncHandler(async (req, res) => {
-  const payload = buildTransactionPayload(req.body, { partial: false });
+  const payload = buildTransactionPayload(req.body);
 
   const transaction = await Transaction.create({
     ...payload,
@@ -143,48 +163,25 @@ const createTransaction = asyncHandler(async (req, res) => {
     updatedBy: req.user._id
   });
 
-  const populated = await transaction.populate("createdBy", "name email role");
-
   res.status(201).json({
-    message: "Transaction created successfully",
-    data: populated
+    message: "Transaction created",
+    data: transaction
   });
 });
+
+/* -------------------- UPDATE -------------------- */
 
 const updateTransaction = asyncHandler(async (req, res) => {
   const payload = buildTransactionPayload(req.body, { partial: true });
 
   if (Object.keys(payload).length === 0) {
-    throw new ApiError(400, "At least one field is required to update");
+    throw new ApiError(400, "Nothing to update");
   }
 
   const transaction = await Transaction.findOneAndUpdate(
     { _id: req.params.id, isDeleted: false },
     {
       ...payload,
-      updatedBy: req.user._id
-    },
-    { new: true, runValidators: true }
-  )
-    .populate("createdBy", "name email role")
-    .populate("updatedBy", "name email role");
-
-  if (!transaction) {
-    throw new ApiError(404, "Transaction not found");
-  }
-
-  res.json({
-    message: "Transaction updated successfully",
-    data: transaction
-  });
-});
-
-const deleteTransaction = asyncHandler(async (req, res) => {
-  const transaction = await Transaction.findOneAndUpdate(
-    { _id: req.params.id, isDeleted: false },
-    {
-      isDeleted: true,
-      deletedAt: new Date(),
       updatedBy: req.user._id
     },
     { new: true }
@@ -195,9 +192,33 @@ const deleteTransaction = asyncHandler(async (req, res) => {
   }
 
   res.json({
-    message: "Transaction deleted successfully"
+    message: "Transaction updated",
+    data: transaction
   });
 });
+
+/* -------------------- DELETE (SOFT DELETE) -------------------- */
+
+const deleteTransaction = asyncHandler(async (req, res) => {
+  const transaction = await Transaction.findOneAndUpdate(
+    { _id: req.params.id, isDeleted: false },
+    {
+      isDeleted: true,
+      deletedAt: new Date(),
+      updatedBy: req.user._id
+    }
+  );
+
+  if (!transaction) {
+    throw new ApiError(404, "Transaction not found");
+  }
+
+  res.json({
+    message: "Transaction deleted"
+  });
+});
+
+/* -------------------- EXPORT -------------------- */
 
 module.exports = {
   getTransactions,

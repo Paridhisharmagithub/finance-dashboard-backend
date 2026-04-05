@@ -12,8 +12,23 @@ const {
 const router = express.Router();
 
 router.get("/", protect, requireRoles("analyst", "admin"), getTransactions);
+
 router.post("/", protect, requireRoles("admin"), createTransaction);
-router.put("/:id", protect, requireRoles("admin"), validateObjectId("id"), updateTransaction);
-router.delete("/:id", protect, requireRoles("admin"), validateObjectId("id"), deleteTransaction);
+
+router.put(
+  "/:id",
+  protect,
+  requireRoles("admin"),
+  validateObjectId("id"),
+  updateTransaction
+);
+
+router.delete(
+  "/:id",
+  protect,
+  requireRoles("admin"),
+  validateObjectId("id"),
+  deleteTransaction
+);
 
 module.exports = router;

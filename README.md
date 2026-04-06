@@ -8,6 +8,13 @@ It supports multiple user roles with controlled access and provides secure APIs 
 
 ---
 
+## 🌐 Live Links
+
+* 🔗 Backend API: https://finance-dashboard-backend-gf2z.onrender.com
+* 📄 API Documentation (Postman): https://documenter.getpostman.com/view/47807716/2sBXiqFosW
+
+---
+
 ## 🎯 Problem Statement
 
 Organizations often struggle with:
@@ -32,12 +39,35 @@ This system solves these problems by:
 | 📊 Analyst | View & analyze financial data        |
 | 👀 Viewer  | Dashboard-only access                |
 
+
+### 🔄 Role Assignment Logic
+
+* By default, every newly registered user is assigned the **Viewer** role.
+* The **Viewer** role has restricted access and can only view dashboard insights.
+* Only an **Admin** has the authority to update user roles.
+* Admins can promote users to **Analyst** or **Admin** based on requirements.
+
+> This ensures a secure and controlled access system where role elevation is strictly managed.
+
+
 ### 🔐 Concept Used: Role-Based Access Control (RBAC)
 
 RBAC ensures that:
 
 * Only authorized users can perform sensitive actions
 * System remains secure and scalable
+
+---
+
+## 🔑 Demo Credentials (For Testing)
+
+| Role       | Email                                             | Password     |
+| ---------- | ------------------------------------------------- | ------------ |
+| 👑 Admin   | [admin@finance.com](mailto:admin@finance.com)     | Admin@12345  |
+| 📊 Analyst | [analyst@finance.com](mailto:analyst@finance.com) | Analyst@1234 |
+| 👀 Viewer  | [viewer@finance.com](mailto:viewer@finance.com)   | Viewer@1234  |
+
+> ⚠️ These are demo accounts for testing role-based access.
 
 ---
 
@@ -176,7 +206,7 @@ RBAC ensures that:
 ## 🌐 Deployment
 
 * Backend deployed on **Render**
-* MongoDB hosted on **MongoDB Atlas**
+* Database hosted on **MongoDB Atlas**
 
 ---
 
